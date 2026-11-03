@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime data: never commit these (they hold usernames, process lists, audit logs, keys)
+config.json
+data/
+logs/
+certs/
+bin/
+*.db
+*.db-wal
+*.db-shm
+*.log
+*.key
+*.pem
+*.crt
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

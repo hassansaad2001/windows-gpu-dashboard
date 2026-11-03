@@ -1,0 +1,40 @@
+{
+  "host": "0.0.0.0",
+  "port": 8443,
+  "https": true,
+  "public_read": false,
+  "session_hours": 8,
+  "allowed_users": [],
+
+  "intervals": {
+    "sample_seconds": 60,
+    "storage_scan_minutes": 60,
+    "events_minutes": 60,
+    "rogue_scan_minutes": 5,
+    "quota_check_minutes": 60
+  },
+
+  "storage": {
+    "profile_root": "",
+    "skip_folders": ["Public", "Default", "Default User", "All Users"],
+    "quota_volumes": []
+  },
+
+  "quota": {
+    "grace_days": 7,
+    "notify_users": true,
+    "notify_repeat_hours": 24,
+    "exempt_users": ["Administrator"],
+    "protect_vm_disks": true
+  },
+
+  "rogue": {
+    "gpu_mem_gb_threshold": 6.0,
+    "multi_gpu_threshold": 3,
+    "cpu_percent_threshold": 400.0,
+    "max_runtime_hours": 72,
+    "idle_disconnected_hours": 24,
+    "whitelist_users": [],
+    "whitelist_names": []
+  }
+}

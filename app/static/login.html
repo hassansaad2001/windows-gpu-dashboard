@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · AI Server Dashboard</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="card login">
+      <h1>AI Server Dashboard</h1>
+      <div class="sub">Sign in with your Windows account on this server.</div>
+      <form id="f" autocomplete="on">
+        <label>Username
+          <input name="username" autocomplete="username" required autofocus placeholder="Windows username">
+        </label>
+        <label>Password
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <div class="err" id="err" role="alert"></div>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+      <p class="hint">Only accounts permitted by the server administrator can sign in.</p>
+    </div>
+  </div>
+  <script src="/static/login.js"></script>
+</body>
+</html>

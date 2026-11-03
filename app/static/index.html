@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Server Dashboard</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="live-dot" id="liveDot" title="Live"></span>AI Server <span class="host" id="host"></span></div>
+  <nav class="sections" aria-label="Sections">
+    <a href="#overview">Overview</a><a href="#trends">Trends</a><a href="#alerts">Alerts</a>
+    <a href="#processes">Processes</a><a href="#storage">Storage</a><a href="#restarts">Restarts</a>
+    <a href="#quota" class="admin-only">Quotas</a><a href="#audit" class="admin-only">Audit</a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="meta" id="meta"></div>
+  <div class="who"><span id="whoName"></span><span class="role" id="whoRole"></span>
+    <button class="btn sm" id="logout">Sign out</button></div>
+</header>
+
+<main>
+  <!-- ============ KPIs ============ -->
+  <section id="overview" class="kpis" aria-label="Key figures">
+    <div class="tile"><div class="label"><i class="key" style="background:var(--series-1)"></i>CPU utilization</div>
+      <div class="value" id="kCpu">–</div><div class="meter"><span id="mCpu"></span></div><div class="foot" id="fCpu"></div></div>
+    <div class="tile"><div class="label"><i class="key" style="background:var(--series-2)"></i>RAM utilization</div>
+      <div class="value" id="kRam">–</div><div class="meter"><span id="mRam"></span></div><div class="foot" id="fRam"></div></div>
+    <div class="tile"><div class="label"><i class="key" style="background:var(--series-3)"></i>GPU utilization (avg of all)</div>
+      <div class="value" id="kGpu">–</div><div class="meter"><span id="mGpu"></span></div><div class="foot" id="fGpu"></div></div>
+    <div class="tile"><div class="label">Registered users</div>
+      <div class="value" id="kUsers">–</div><div class="foot" id="fUsers"></div></div>
+    <div class="tile"><div class="label">Sessions</div>
+      <div class="value" id="kSess">–</div><div class="foot" id="fSess"></div></div>
+    <div class="tile"><div class="label">Flagged processes</div>
+      <div class="value" id="kFlag">–</div><div class="foot" id="fFlag"></div></div>
+    <div class="tile"><div class="label">Uptime</div>
+      <div class="value" id="kUp">–</div><div class="foot" id="fUp"></div></div>
+  </section>
+
+  <section class="card" aria-labelledby="gpuTitle">
+    <div class="card-head"><div><h2 id="gpuTitle">GPUs</h2><div class="sub" id="gpuSub">Live, refreshed every 15 s</div></div>
+      <div class="sub" id="diskSub"></div></div>
+    <div class="gpus" id="gpus"></div>
+  </section>
+
+  <!-- ============ Trends ============ -->
+  <section id="trends" class="card">
+    <div class="card-head">
+      <div><h2>Utilization trends</h2><div class="sub" id="trendSub">Hourly averages, %</div></div>
+      <div class="seg" role="tablist" id="rangeSeg">
+        <button data-r="1h">1 h</button><button data-r="24h" class="on">24 h</button><button data-r="7d">7 d</button>
+        <button data-r="30d">30 d</button><button data-r="12m">12 mo</button>
+      </div>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span><i style="background:var(--series-1)"></i>CPU</span>
+      <span><i style="background:var(--series-2)"></i>RAM</span>
+      <span><i style="background:var(--series-3)"></i>GPU (avg of 8)</span>
+    </div>
+    <div class="chart-box"><canvas id="trendChart" aria-label="CPU, RAM and GPU utilization over time" role="img"></canvas></div>
+    <h2 style="margin-top:22px;font-size:14px">GPU utilization per card</h2>
+    <div class="heat" id="heat"></div>
+    <div class="heat-scale"><span>0%</span><span class="ramp" id="heatRamp"></span><span>100%</span></div>
+    <details class="data-table"><summary>Show data table</summary><div class="table-wrap"><table id="trendTable"></table></div></details>
+  </section>
+
+  <!-- ============ Alerts + restarts ============ -->
+  <div class="grid cols-2">
+    <section id="alerts" class="card">
+      <div class="card-head"><div><h2>Rogue &amp; background process alerts</h2>
+        <div class="sub" id="alertSub">Compute jobs that are orphaned, detached, idle or resource-heavy</div></div>
+        <button class="btn sm" id="refreshProcs">Rescan now</button></div>
+      <div class="alerts" id="alertList"></div>
+    </section>
+
+    <section id="restarts" class="card">
+      <div class="card-head"><div><h2>Last 10 restarts</h2><div class="sub">From the System event log (IDs 1074, 41, 6008, 1076, 12, 13)</div></div></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Boot time</th><th>Down since</th><th>Type</th><th>Cause / reason</th><th>User</th></tr></thead>
+        <tbody id="restartRows"></tbody></table></div>
+    </section>
+  </div>
+
+  <!-- ============ Processes + sessions ============ -->
+  <section id="processes" class="card">
+    <div class="card-head"><div><h2>GPU processes by user</h2>
+      <div class="sub">Per-process VRAM from Windows GPU counters (WDDM). Terminating ends the process tree.</div></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>User</th><th>Process</th><th class="num">PID</th><th>GPUs (VRAM)</th><th class="num">VRAM</th>
+        <th class="num">CPU</th><th class="num">RAM</th><th class="num">Runtime</th><th>Session</th><th class="admin-only"></th></tr></thead>
+      <tbody id="procRows"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><div><h2>Logon sessions</h2><div class="sub">Interactive (RDP/console) sessions on the server</div></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>User</th><th class="num">ID</th><th>State</th><th class="num">Idle</th><th>Logged on</th><th class="admin-only"></th></tr></thead>
+      <tbody id="sessRows"></tbody></table></div>
+  </section>
+
+  <!-- ============ Storage ============ -->
+  <section id="storage" class="card">
+    <div class="card-head"><div><h2>User storage footprint</h2><div class="sub" id="storageSub"></div></div>
+      <button class="btn sm admin-only" id="rescanStorage">Rescan now</button></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>User</th><th class="num">Home folder</th><th class="bar-cell">Share of largest</th><th class="num">Files</th>
+        <th class="num">NTFS owned</th><th>Quota</th></tr></thead>
+      <tbody id="storageRows"></tbody></table></div>
+  </section>
+
+  <!-- ============ Quota admin ============ -->
+  <section id="quota" class="card admin-only">
+    <div class="card-head"><div><h2>Storage quotas</h2><div class="sub" id="volStatus"></div></div>
+      <button class="btn sm" id="evalQuota">Re-evaluate now</button></div>
+    <form id="quotaForm" class="form">
+      <label>Apply to<select name="target" id="qTarget"><option value="*">All non-admin users</option></select></label>
+      <label>Volume<select name="volume" id="qVolume"></select></label>
+      <label>Mode<select name="mode" id="qMode">
+        <option value="grace">Soft + grace period, then block</option>
+        <option value="hard">Hard: block at limit now</option>
+        <option value="soft">Soft: warn only</option></select></label>
+      <label>Soft limit (GB)<input name="soft_gb" type="number" min="1" step="1" placeholder="e.g. 200"></label>
+      <label>Hard limit (GB)<input name="hard_gb" type="number" min="1" step="1" placeholder="optional ceiling"></label>
+      <label>Grace (days)<input name="grace_days" type="number" min="0" max="365" step="1" value="7"></label>
+      <button class="btn primary" type="submit">Save policy</button>
+    </form>
+    <p class="hint">NTFS quotas charge every file a user <em>owns</em> on the volume. At the limit, new writes fail with
+      “not enough disk space” while reading and deleting keep working; writes resume once usage is back under the limit.
+      Users are warned by a pop-up in their session and an Application event-log entry. Administrators are exempt from “All users”.</p>
+    <div class="table-wrap" style="margin-top:14px"><table>
+      <thead><tr><th>Target</th><th>Volume</th><th>Mode</th><th class="num">Soft</th><th class="num">Hard</th><th class="num">Grace</th><th>Set by</th><th></th></tr></thead>
+      <tbody id="policyRows"></tbody></table></div>
+    <h2 style="margin-top:20px;font-size:14px">Per-user quota status</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>User</th><th>Volume</th><th>Status</th><th class="num">Usage</th><th class="num">Soft</th><th class="num">Enforced limit</th><th>Over since</th><th>Note</th></tr></thead>
+      <tbody id="qStateRows"></tbody></table></div>
+  </section>
+
+  <section id="audit" class="card admin-only">
+    <div class="card-head"><div><h2>Audit log</h2><div class="sub">Sign-ins and administrative actions</div></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Time</th><th>Actor</th><th>IP</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+      <tbody id="auditRows"></tbody></table></div>
+  </section>
+</main>
+
+<dialog id="confirmDlg">
+  <h3 id="dlgTitle"></h3>
+  <div id="dlgBody" class="sec"></div>
+  <div class="actions"><button class="btn" value="cancel" id="dlgCancel">Cancel</button>
+    <button class="btn danger" id="dlgOk">Confirm</button></div>
+</dialog>
+<div class="tooltip hidden" id="tip"></div>
+
+<script src="/static/vendor/chart.umd.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
