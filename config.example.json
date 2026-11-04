@@ -11,7 +11,8 @@
     "storage_scan_minutes": 60,
     "events_minutes": 60,
     "rogue_scan_minutes": 5,
-    "quota_check_minutes": 60
+    "quota_check_minutes": 60,
+    "integrity_minutes": 15
   },
 
   "storage": {

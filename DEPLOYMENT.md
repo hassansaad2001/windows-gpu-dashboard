@@ -115,7 +115,9 @@ The installer:
 4. Removes inherited permissions on `C:\AIDashboard` and grants only **Administrators** and **SYSTEM**.
 5. Downloads NSSM 2.24 to `C:\AIDashboard\bin\nssm.exe` and registers the service.
 6. Adds the firewall rule and enlarges the System event log.
-7. Starts the service and checks that the port answers.
+7. Locks the folder read-only for every account and records a file baseline
+   ([File protection](#file-protection); skip with `-NoProtect`).
+8. Starts the service and checks that the port answers.
 
 ### What the NSSM registration does (for reference / manual install)
 
@@ -137,6 +139,41 @@ sc.exe failure AIDashboard reset= 86400 actions= restart/10000/restart/30000/res
 
 **Why LocalSystem:** the service has to read every user's processes, end them, run `fsutil quota`,
 log off sessions and validate passwords. Only Administrators and SYSTEM can read the install folder.
+
+### File protection
+
+`scripts\protect.ps1` (run by the installer) stops anyone, Administrators included, from changing
+the installed app:
+
+- **Read-only for everyone.** SYSTEM owns every file. Administrators and SYSTEM get read access only.
+  Only `data\` and `logs\` stay writable, and only by SYSTEM, which is the service. Writes, deletes,
+  renames and permission changes from an Administrator are refused.
+- **Tamper check.** The installer records a SHA-256 baseline of every file (app code, venv,
+  `config.json`, certificate, NSSM) in `manifest.json`. The service re-hashes them every
+  `intervals.integrity_minutes` (15). If anything differs, it writes Application event **4001**
+  and an audit-log row, and admins see a red banner listing the files. Event **4002** means the
+  baseline was rebuilt, and **4000** means the files match again.
+- **Who did it.** File System auditing is turned on, and the folder audits writes, deletes, and
+  permission and ownership changes. The Security log (event **4663**) records the account and
+  program behind every change, including refused attempts.
+
+**Limits.** Windows has no way to stop an Administrator completely. An admin can take ownership
+back, and with the backup/restore privilege enabled can delete files without permission checks.
+The lock makes that a deliberate step, the Security log records who did it, and the tamper check
+reports it within 15 minutes. An admin could also stop the service and clear the logs, but
+clearing the Security log leaves event 1102 behind.
+
+**Changing settings or files** while the lock is on:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\AIDashboard\scripts\protect.ps1 -Unlock
+notepad C:\AIDashboard\config.json        # or replace files
+powershell -ExecutionPolicy Bypass -File C:\AIDashboard\scripts\protect.ps1   # lock + new baseline
+Restart-Service AIDashboard
+```
+
+Until you lock again, the dashboard reports the changed files. `install.ps1` and `uninstall.ps1`
+unlock and re-lock on their own.
 
 ### Firewall
 
@@ -282,13 +319,14 @@ C:\AIDashboard\bin\nssm.exe edit AIDashboard      # GUI for service settings (ru
 ```
 
 **Configuration** lives in `C:\AIDashboard\config.json`. Keys you leave out use their defaults
-(see `app\config.py`). Restart the service after editing. Useful keys:
+(see `app\config.py`). The file is locked: unlock it first and lock it again afterwards
+([File protection](#file-protection)), then restart the service. Useful keys:
 
 - `port`, `https`, `public_read` (true = viewing needs no sign-in, admin actions still do)
 - `allowed_users`: if set, only these Windows accounts can sign in, e.g. `["admin1", "admin2"]`. Other accounts
   get the same "invalid username or password" answer, and their passwords are never checked. Keep
   `public_read` false, or anyone on the LAN can still view the dashboard without signing in.
-- `intervals.*`: collector intervals
+- `intervals.*`: collector intervals; `intervals.integrity_minutes` is how often files are checked against the baseline
 - `storage.profile_root`: profiles folder to scan (empty = detected from the registry)
 - `storage.quota_volumes`: volumes whose NTFS usage is read (empty = every fixed NTFS volume)
 - `rogue.*`: thresholds and whitelists
@@ -327,7 +365,7 @@ All JSON. Send the session cookie, and add the `X-Requested-With: aidash` header
 | POST | `/api/sessions/{id}/logoff` | admin |
 | POST/DELETE | `/api/quota/policies` · `/api/quota/policies/{id}` | admin |
 | POST | `/api/quota/preview` (same body as a policy; changes nothing) | admin |
-| POST | `/api/jobs/{rogue\|events\|storage\|quota\|metrics}/run` · GET `/api/audit` | admin |
+| POST | `/api/jobs/{rogue\|events\|storage\|quota\|metrics\|integrity}/run` · GET `/api/audit` | admin |
 
 ## 6. Files
 
@@ -343,9 +381,10 @@ app/
   quota.py       policies, evaluation, NTFS enforcement, notifications
   winutil.py     accounts, admin check, WTS sessions, LogonUser, messages, event log
   auth.py        sign-in sessions, role checks, throttling
+  integrity.py   file baseline and tamper check
   scheduler.py   background job threads
   static/        index.html, login.html, app.js, app.css, vendor/chart.umd.min.js
 scripts/
-  install.ps1  uninstall.ps1  setup-quotas.ps1  make_cert.py
+  install.ps1  uninstall.ps1  protect.ps1  setup-quotas.ps1  make_cert.py
 config.example.json  requirements.txt
 ```

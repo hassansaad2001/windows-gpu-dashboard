@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import auth, db, events, metrics, processes, quota, scheduler, storage, winutil
+from . import auth, db, events, integrity, metrics, processes, quota, scheduler, storage, winutil
 from .config import CFG, resolve
 
 STATIC = Path(__file__).parent / "static"
@@ -165,6 +165,7 @@ def api_overview(s=Depends(auth.require_viewer)):
         "disks": disks,
         "jobs": scheduler.status,
         "storage_scan": storage.scan_status(),
+        "integrity": integrity.summary(s["is_admin"]),
     }
 
 
@@ -334,7 +335,7 @@ def api_quota_delete(policy_id: int, request: Request, s=Depends(auth.require_ad
 
 @app.post("/api/jobs/{name}/run")
 def api_run_job(name: str, request: Request, s=Depends(auth.require_admin)):
-    if name not in ("rogue", "events", "storage", "quota", "metrics"):
+    if name not in ("rogue", "events", "storage", "quota", "metrics", "integrity"):
         raise HTTPException(404, "unknown job")
     scheduler.run_now(name)
     db.audit(s["user"], client_ip(request), "run-job", name)

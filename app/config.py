@@ -34,6 +34,7 @@ DEFAULTS = {
         "events_minutes": 60,          # restart/shutdown event parsing
         "rogue_scan_minutes": 5,       # rogue/orphaned process detection
         "quota_check_minutes": 60,     # quota evaluation + escalation
+        "integrity_minutes": 15,       # re-hash the app files against the protected baseline
     },
 
     "retention": {

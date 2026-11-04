@@ -3,7 +3,7 @@ import logging
 import threading
 import time
 
-from . import db, events, metrics, processes, quota, storage
+from . import db, events, integrity, metrics, processes, quota, storage
 from .config import CFG
 
 log = logging.getLogger("aidash.sched")
@@ -40,6 +40,7 @@ def start():
         ("storage", iv["storage_scan_minutes"] * 60, _storage, 20),
         ("quota", iv["quota_check_minutes"] * 60, quota.evaluate, 120),
         ("prune", 6 * 3600, db.prune, 300),
+        ("integrity", iv["integrity_minutes"] * 60, integrity.check, 15),  # ~1 s for 3,000 files
     ]
     for name, interval, fn, delay in jobs:
         threading.Thread(target=_loop, args=(name, interval, fn, delay), name=f"job-{name}", daemon=True).start()
@@ -48,7 +49,7 @@ def start():
 
 def run_now(name):
     fn = {"rogue": processes.scan, "events": events.collect, "storage": _storage,
-          "quota": quota.evaluate, "metrics": metrics.sample_once}[name]
+          "quota": quota.evaluate, "metrics": metrics.sample_once, "integrity": integrity.check}[name]
     threading.Thread(target=_loop_once, args=(name, fn), daemon=True).start()
 
 

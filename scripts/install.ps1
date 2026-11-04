@@ -4,10 +4,11 @@
 
 .DESCRIPTION
   Copies the app to -InstallDir, builds a Python virtual environment, creates a
-  self-signed TLS certificate, restricts the folder to Administrators/SYSTEM,
-  registers the "AIDashboard" service with NSSM (auto-start, restart on
-  failure), opens the firewall port for the local subnet and enlarges the
-  System event log so restart history is kept longer.
+  self-signed TLS certificate, registers the "AIDashboard" service with NSSM
+  (auto-start, restart on failure), opens the firewall port for the local subnet
+  and enlarges the System event log so restart history is kept longer. Finally
+  scripts\protect.ps1 makes the folder read-only for every account and records a
+  file baseline the service checks for tampering (skip with -NoProtect).
 
   Re-running the script upgrades in place and keeps config.json, the database
   and the certificate.
@@ -26,7 +27,8 @@ param(
     [string]$PythonExe     = "",
     [string]$ServiceName   = "AIDashboard",
     [string]$NssmUrl       = "https://nssm.cc/release/nssm-2.24.zip",
-    [int]   $SystemLogMB   = 256
+    [int]   $SystemLogMB   = 256,
+    [switch]$NoProtect
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,6 +68,9 @@ if (Get-Service $ServiceName -ErrorAction SilentlyContinue) {
 # ---------------------------------------------------------------- copy files
 Step "Copying application to $InstallDir"
 New-Item -ItemType Directory -Force $InstallDir, "$InstallDir\data", "$InstallDir\logs", "$InstallDir\bin", "$InstallDir\certs" | Out-Null
+# Also undoes an earlier lock, and limits the folder to Administrators and SYSTEM
+# before anything sensitive is written to it.
+& (Join-Path $PSScriptRoot "protect.ps1") -InstallDir $InstallDir -Unlock | Out-Null
 robocopy (Join-Path $src "app") (Join-Path $InstallDir "app") /MIR /XD __pycache__ /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "Copying app failed (robocopy exit $LASTEXITCODE)" }
 robocopy (Join-Path $src "scripts") (Join-Path $InstallDir "scripts") /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
@@ -105,13 +110,6 @@ if ($cfg.https -and -not (Test-Path "$InstallDir\certs\server.crt")) {
     Step "Generating self-signed TLS certificate"
     & $venvPy (Join-Path $InstallDir "scripts\make_cert.py") --out (Join-Path $InstallDir "certs")
 }
-
-# ---------------------------------------------------------------- permissions
-Step "Restricting $InstallDir to Administrators and SYSTEM"
-# Explicit ACL on the root only; (OI)(CI) is invalid on files, so the contents are
-# reset to inherit from the root instead of being granted one by one.
-icacls $InstallDir /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" /Q | Out-Null
-icacls "$InstallDir\*" /reset /T /C /Q | Out-Null
 
 # ---------------------------------------------------------------- NSSM
 if (-not (Test-Path $nssm)) {
@@ -189,6 +187,13 @@ $cur = [int64]((wevtutil gl System | Select-String "maxSize:") -replace "\D", ""
 if ($cur -lt $SystemLogMB * 1MB) {
     Step "Enlarging System event log to $SystemLogMB MB (was $([math]::Round($cur / 1MB)) MB)"
     wevtutil sl System /ms:$($SystemLogMB * 1MB)
+}
+
+# ---------------------------------------------------------------- protect
+if ($NoProtect) {
+    Write-Warning "Skipping the file lock: Administrators can change $InstallDir without an alert."
+} else {
+    & (Join-Path $InstallDir "scripts\protect.ps1") -InstallDir $InstallDir
 }
 
 # ---------------------------------------------------------------- start

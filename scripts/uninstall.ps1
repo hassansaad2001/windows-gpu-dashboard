@@ -21,6 +21,11 @@ $svc = Get-Service $ServiceName -ErrorAction SilentlyContinue
 # Stop first so a running evaluation can't re-apply a limit after it is lifted.
 if ($svc) { Stop-Service $ServiceName -Force -ErrorAction SilentlyContinue }
 
+# Lifting limits writes to the database, and -RemoveFiles deletes the folder;
+# both need the lock from protect.ps1 undone.
+$protect = Join-Path $PSScriptRoot "protect.ps1"
+if ((Test-Path $InstallDir) -and (Test-Path $protect)) { & $protect -InstallDir $InstallDir -Unlock | Out-Null }
+
 if (-not $KeepQuotaLimits -and (Test-Path $venvPy)) {
     Push-Location $InstallDir
     try {

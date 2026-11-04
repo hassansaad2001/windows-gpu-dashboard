@@ -82,12 +82,31 @@ function hideTip() { tip.classList.add("hidden"); }
 let lastOverview = null;
 let flaggedCount = null;
 
+function renderIntegrity(I) {
+  const bad = I.protected && I.ok === false;
+  $("tamper").classList.toggle("hidden", !bad);
+  if (!bad) return;
+  if (!ME.is_admin) {
+    $("tamper").innerHTML = "<b>App files were modified.</b> The dashboard's files differ from the protected copy. Administrators have been alerted.";
+    return;
+  }
+  const n = I.changed_count + I.added_count + I.missing_count;
+  const rows = [...I.changed.map((p) => "changed " + p), ...I.added.map((p) => "added " + p),
+                ...I.missing.map((p) => "missing " + p)];
+  $("tamper").innerHTML = `<b>App files were modified.</b> ${n} file(s) in the install folder differ from the
+    baseline recorded ${dt(I.baseline)} by ${esc(I.baseline_by || "?")} (checked ${dt(I.checked)}).
+    The Security event log (event 4663) shows which account did it. If the change was yours, run
+    <code>scripts\\protect.ps1</code> again to lock the files and record a new baseline.
+    <ul>${rows.map((r) => `<li>${esc(r)}</li>`).join("")}${n > rows.length ? `<li>… and ${n - rows.length} more</li>` : ""}</ul>`;
+}
+
 async function loadOverview() {
   const o = await api("/api/overview");
   lastOverview = o;
   const L = o.live || {};
   $("host").textContent = o.host;
   document.title = `${o.host} · AI Server Dashboard`;
+  renderIntegrity(o.integrity || {});
 
   $("kCpu").innerHTML = pct(L.cpu); setMeter("mCpu", L.cpu);
   $("fCpu").textContent = `${o.cpu_count} logical cores`;

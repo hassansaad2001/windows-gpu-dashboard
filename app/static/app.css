@@ -57,6 +57,8 @@ nav.sections a:hover { background: var(--surface-2); color: var(--text); }
 
 .grid { display: grid; gap: 20px; }
 .grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); }
+.tamper { background: var(--surface); border: 1px solid var(--critical); border-left-width: 4px; border-radius: var(--radius); padding: 12px 16px; line-height: 1.5; }
+.tamper ul { margin: 6px 0 0; padding-left: 20px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; min-width: 0; }

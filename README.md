@@ -62,6 +62,9 @@ and the full [deployment guide](DEPLOYMENT.md).
   ([how](DEPLOYMENT.md#remote-access-optional)).
 - The service runs as LocalSystem, because it has to read and end other users' processes and
   manage quotas. The install folder is readable only by Administrators and SYSTEM.
+- The installed files are read-only for every account, Administrators included. The service
+  checks them against a SHA-256 baseline and alerts if any file changes, and the Security event
+  log records who changed it ([details](DEPLOYMENT.md#file-protection)).
 - `config.json`, the database, logs and certificates hold server-specific data and are
   git-ignored. Don't commit them.
 
